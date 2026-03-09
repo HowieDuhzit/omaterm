@@ -44,7 +44,23 @@ sanitize_proot_environment() {
   # Termux's exec shim can leak into proot and redirect shebang execution to
   # Android system binaries, which breaks normal Linux script execution.
   unset LD_PRELOAD
-  export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+  unset PREFIX TERMUX_APP_PID TERMUX_MAIN_PACKAGE_FORMAT TERMUX_VERSION
+  export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  hash -r
+}
+
+find_linux_binary() {
+  local name="$1"
+  local candidate
+
+  for candidate in "/usr/bin/$name" "/bin/$name" "/usr/sbin/$name" "/sbin/$name" "/usr/local/bin/$name" "/usr/local/sbin/$name"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 supports_systemd() {
@@ -77,7 +93,10 @@ ensure_supported_user_context() {
 }
 
 install_omadots() {
-  curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | LD_PRELOAD= bash
+  local curl_bin bash_bin
+  curl_bin="$(find_linux_binary curl)"
+  bash_bin="$(find_linux_binary bash)"
+  "$curl_bin" -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | LD_PRELOAD= "$bash_bin"
 }
 
 install_configs() {
@@ -202,12 +221,12 @@ ensure_supported_user_context()
 # Ensure correct git is installed
 if ! command -v git &>/dev/null; then
   if [ -f /etc/arch-release ]; then
-    run_privileged pacman -Sy --noconfirm git
+    run_privileged "$(find_linux_binary pacman)" -Sy --noconfirm git
   elif [ -f /etc/debian_version ]; then
-    run_privileged apt-get update
-    run_privileged apt-get install -y git
+    run_privileged "$(find_linux_binary apt-get)" update
+    run_privileged "$(find_linux_binary apt-get)" install -y git
   elif [ -f /etc/fedora-release ]; then
-    run_privileged dnf install -y git
+    run_privileged "$(find_linux_binary dnf)" install -y git
   fi
 fi
 
@@ -224,7 +243,7 @@ if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/
 else
   INSTALLER_DIR="$(mktemp -d)"
   trap 'rm -rf "$INSTALLER_DIR"' EXIT
-  git clone --depth 1 "$REPO" "$INSTALLER_DIR"
+  "$(find_linux_binary git)" clone --depth 1 "$REPO" "$INSTALLER_DIR"
 fi
 
 # OS detection and dispatch

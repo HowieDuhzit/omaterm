@@ -14,7 +14,7 @@ Omaterm can run inside a `proot` distro, but it operates in a reduced mode. User
 
 On Arch-based `proot` environments on Android, run the installer as the `root` user inside the distro. `sudo` authentication is often not wired up cleanly there and can fail with `Authentication token manipulation error`.
 
-The installer now clears Termux's `LD_PRELOAD` automatically in `proot`, but invoking it with `bash` is still the safest path if you are testing from a checkout.
+The installer now clears Termux-specific environment leakage in `proot`, including `LD_PRELOAD`, resets `PATH` to distro binaries, and prefers absolute Linux command paths for package installs.
 
 ## Install
 
