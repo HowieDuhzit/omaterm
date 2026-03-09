@@ -14,7 +14,7 @@ install_packages() {
   fi
 
   section "Installing Arch packages..."
-  run_privileged "$(find_linux_binary pacman)" -Syu --needed --noconfirm "${official_pkgs[@]}"
+  run_privileged "$(require_linux_binary pacman)" -Syu --needed --noconfirm "${official_pkgs[@]}"
 
   if is_proot_environment; then
     skip_in_proot "AUR bootstrap and claude-code installation"
@@ -28,8 +28,8 @@ install_packages() {
   if ! command -v yay &>/dev/null; then
     section "Installing yay..."
     local tmpdir=$(mktemp -d)
-    "$(find_linux_binary git)" clone https://aur.archlinux.org/yay-bin.git "$tmpdir/yay"
-    (cd "$tmpdir/yay" && "$(find_linux_binary makepkg)" -si --noconfirm)
+    "$(require_linux_binary git)" clone https://aur.archlinux.org/yay-bin.git "$tmpdir/yay"
+    (cd "$tmpdir/yay" && "$(require_linux_binary makepkg)" -si --noconfirm)
     rm -rf "$tmpdir"
   fi
 

@@ -63,6 +63,24 @@ find_linux_binary() {
   return 1
 }
 
+require_linux_binary() {
+  local name="$1"
+  local resolved
+
+  if resolved="$(find_linux_binary "$name")"; then
+    printf '%s\n' "$resolved"
+    return 0
+  fi
+
+  if command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+    return 0
+  fi
+
+  echo "Error: required binary '$name' was not found in the proot distro." >&2
+  return 1
+}
+
 supports_systemd() {
   command -v systemctl &>/dev/null && [ -d /run/systemd/system ]
 }
@@ -94,8 +112,8 @@ ensure_supported_user_context() {
 
 install_omadots() {
   local curl_bin bash_bin
-  curl_bin="$(find_linux_binary curl)"
-  bash_bin="$(find_linux_binary bash)"
+  curl_bin="$(require_linux_binary curl)"
+  bash_bin="$(require_linux_binary bash)"
   "$curl_bin" -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | LD_PRELOAD= "$bash_bin"
 }
 
@@ -221,12 +239,12 @@ ensure_supported_user_context()
 # Ensure correct git is installed
 if ! command -v git &>/dev/null; then
   if [ -f /etc/arch-release ]; then
-    run_privileged "$(find_linux_binary pacman)" -Sy --noconfirm git
+    run_privileged "$(require_linux_binary pacman)" -Sy --noconfirm git
   elif [ -f /etc/debian_version ]; then
-    run_privileged "$(find_linux_binary apt-get)" update
-    run_privileged "$(find_linux_binary apt-get)" install -y git
+    run_privileged "$(require_linux_binary apt-get)" update
+    run_privileged "$(require_linux_binary apt-get)" install -y git
   elif [ -f /etc/fedora-release ]; then
-    run_privileged "$(find_linux_binary dnf)" install -y git
+    run_privileged "$(require_linux_binary dnf)" install -y git
   fi
 fi
 
@@ -243,7 +261,7 @@ if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/
 else
   INSTALLER_DIR="$(mktemp -d)"
   trap 'rm -rf "$INSTALLER_DIR"' EXIT
-  "$(find_linux_binary git)" clone --depth 1 "$REPO" "$INSTALLER_DIR"
+  "$(require_linux_binary git)" clone --depth 1 "$REPO" "$INSTALLER_DIR"
 fi
 
 # OS detection and dispatch
