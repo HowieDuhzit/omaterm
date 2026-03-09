@@ -215,10 +215,6 @@ REPO="${OMATERM_REPO:-https://github.com/HowieDuhzit/omaterm.git}"
 SCRIPT_PATH="${0:-}"
 SCRIPT_DIR=""
 
-if declare -p BASH_SOURCE >/dev/null 2>&1; then
-  SCRIPT_PATH="${BASH_SOURCE[0]}"
-fi
-
 if [ -n "$SCRIPT_PATH" ] && [ "$SCRIPT_PATH" != "bash" ] && [ "$SCRIPT_PATH" != "-" ] && [ "$SCRIPT_PATH" != "/bin/bash" ]; then
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd -P)"
 fi
