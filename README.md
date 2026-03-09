@@ -14,11 +14,15 @@ Omaterm can run inside a `proot` distro, but it operates in a reduced mode. User
 
 On Arch-based `proot` environments on Android, run the installer as the `root` user inside the distro. `sudo` authentication is often not wired up cleanly there and can fail with `Authentication token manipulation error`.
 
+The installer now clears Termux's `LD_PRELOAD` automatically in `proot`, but invoking it with `bash` is still the safest path if you are testing from a checkout.
+
 ## Install
 
 ```bash
-curl -fsSL https://omaterm.org/install | bash
+curl -fsSL https://raw.githubusercontent.com/HowieDuhzit/omaterm/proot/install.sh | bash
 ```
+
+If you cloned the repo, run `bash install.sh` from the repo root. The installer will use the local checkout instead of recloning from upstream.
 
 ## What it sets up
 

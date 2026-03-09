@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 # Common functions for Omaterm installation
@@ -36,6 +36,17 @@ is_proot_environment() {
   return 1
 }
 
+sanitize_proot_environment() {
+  if ! is_proot_environment; then
+    return 0
+  fi
+
+  # Termux's exec shim can leak into proot and redirect shebang execution to
+  # Android system binaries, which breaks normal Linux script execution.
+  unset LD_PRELOAD
+  export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+}
+
 supports_systemd() {
   command -v systemctl &>/dev/null && [ -d /run/systemd/system ]
 }
@@ -66,7 +77,7 @@ ensure_supported_user_context() {
 }
 
 install_omadots() {
-  curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | LD_PRELOAD= bash
 }
 
 install_configs() {
@@ -183,6 +194,7 @@ run_installation() {
 }
 
 # Getting started
+sanitize_proot_environment
 show_banner
 section "Installing Omaterm..."
 ensure_supported_user_context()
@@ -199,11 +211,16 @@ if ! command -v git &>/dev/null; then
   fi
 fi
 
-REPO="https://github.com/omacom-io/omaterm.git"
-INSTALLER_DIR="$(mktemp -d)"
-trap 'rm -rf "$INSTALLER_DIR"' EXIT
+REPO="${OMATERM_REPO:-https://github.com/HowieDuhzit/omaterm.git}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-git clone --depth 1 "$REPO" "$INSTALLER_DIR"
+if [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/install" ] && [ -d "$SCRIPT_DIR/config" ] && [ -d "$SCRIPT_DIR/bin" ]; then
+  INSTALLER_DIR="$SCRIPT_DIR"
+else
+  INSTALLER_DIR="$(mktemp -d)"
+  trap 'rm -rf "$INSTALLER_DIR"' EXIT
+  git clone --depth 1 "$REPO" "$INSTALLER_DIR"
+fi
 
 # OS detection and dispatch
 if [ -f /etc/arch-release ]; then
