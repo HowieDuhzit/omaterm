@@ -12,6 +12,8 @@ An omakase headless setup for Arch Linux servers or dev boxes in the spirit of O
 
 Omaterm can run inside a `proot` distro, but it operates in a reduced mode. User-space tools, configs, and local binaries are installed normally; system services and host-level integrations such as Docker, Tailscale service setup, and SSH daemon reconfiguration are skipped. If auto-detection misses your environment, run the installer with `OMATERM_PROOT=1`.
 
+On Arch-based `proot` environments on Android, run the installer as the `root` user inside the distro. `sudo` authentication is often not wired up cleanly there and can fail with `Authentication token manipulation error`.
+
 ## Install
 
 ```bash

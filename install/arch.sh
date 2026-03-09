@@ -7,10 +7,6 @@ install_packages() {
     github-cli lazygit lazydocker opencode
   )
 
-  local aur_pkgs=(
-    claude-code
-  )
-
   if is_proot_environment; then
     skip_in_proot "Docker and Tailscale package installation"
   else
@@ -19,6 +15,15 @@ install_packages() {
 
   section "Installing Arch packages..."
   run_privileged pacman -Syu --needed --noconfirm "${official_pkgs[@]}"
+
+  if is_proot_environment; then
+    skip_in_proot "AUR bootstrap and claude-code installation"
+    return 0
+  fi
+
+  local aur_pkgs=(
+    claude-code
+  )
 
   if ! command -v yay &>/dev/null; then
     section "Installing yay..."

@@ -56,6 +56,15 @@ skip_in_proot() {
   echo "Skipping $step in proot."
 }
 
+ensure_supported_user_context() {
+  if is_proot_environment && [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    echo "Error: Arch proot installs must be run as root inside the proot."
+    echo "Reason: sudo/password auth frequently fails in Android proot with 'Authentication token manipulation error'."
+    echo "Fix: enter the distro as root and rerun, for example with 'proot-distro login <distro> --user root'."
+    exit 1
+  fi
+}
+
 install_omadots() {
   curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | bash
 }
@@ -176,6 +185,7 @@ run_installation() {
 # Getting started
 show_banner
 section "Installing Omaterm..."
+ensure_supported_user_context()
 
 # Ensure correct git is installed
 if ! command -v git &>/dev/null; then
