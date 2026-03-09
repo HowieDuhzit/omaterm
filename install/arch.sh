@@ -5,16 +5,20 @@ install_packages() {
     vim neovim luarocks
     clang llvm rust mise libyaml
     github-cli lazygit lazydocker opencode
-    docker docker-buildx docker-compose
-    tailscale
   )
 
   local aur_pkgs=(
     claude-code
   )
 
+  if is_proot_environment; then
+    skip_in_proot "Docker and Tailscale package installation"
+  else
+    official_pkgs+=(docker docker-buildx docker-compose tailscale)
+  fi
+
   section "Installing Arch packages..."
-  sudo pacman -Syu --needed --noconfirm "${official_pkgs[@]}"
+  run_privileged pacman -Syu --needed --noconfirm "${official_pkgs[@]}"
 
   if ! command -v yay &>/dev/null; then
     section "Installing yay..."
@@ -33,11 +37,16 @@ install_npm_tools() {
 }
 
 enable_services() {
+  if is_proot_environment || ! supports_systemd; then
+    skip_in_proot "system service enablement"
+    return 0
+  fi
+
   section "Enabling services..."
 
-  sudo systemctl enable --now docker.service
+  run_privileged systemctl enable --now docker.service
   echo "✓ Docker"
 
-  sudo systemctl enable --now sshd.service
+  run_privileged systemctl enable --now sshd.service
   echo "✓ sshd"
 }

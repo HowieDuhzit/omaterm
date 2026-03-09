@@ -1,6 +1,25 @@
 #!/bin/bash
 set -euo pipefail
 
+is_proot_environment() {
+  [ "${OMATERM_PROOT:-0}" = "1" ] || [ -n "${PROOT_TMP_DIR:-}" ] || [ -n "${PROOT_LOADER:-}" ] || [ -n "${PROOT_NO_SECCOMP:-}" ]
+}
+
+supports_systemd() {
+  command -v systemctl &>/dev/null && [ -d /run/systemd/system ]
+}
+
+run_privileged() {
+  if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    "$@"
+  elif command -v sudo &>/dev/null; then
+    sudo "$@"
+  else
+    echo "Cannot modify SSH server settings without root or sudo."
+    return 1
+  fi
+}
+
 # Add SSH public key for remote access
 # https://github.com/basecamp/omaterm
 
@@ -18,10 +37,14 @@ if gum confirm "Add SSH public key for remote access?"; then
     # Offer to disable password auth if not already disabled
     if ! grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config 2>/dev/null; then
       if gum confirm "Disable password authentication for SSH (key-based auth only)?"; then
-        sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-        sudo sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-        sudo systemctl restart sshd.service
-        echo "SSH configured for key-based authentication only."
+        if is_proot_environment || ! supports_systemd; then
+          echo "Skipping sshd reconfiguration in proot or non-systemd environments."
+        else
+          run_privileged sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+          run_privileged sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+          run_privileged systemctl restart sshd.service
+          echo "SSH configured for key-based authentication only."
+        fi
       fi
     fi
   fi

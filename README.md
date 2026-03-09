@@ -8,6 +8,10 @@ An omakase headless setup for Arch Linux servers or dev boxes in the spirit of O
 - Internet connection
 - `sudo` privileges
 
+## Proot support
+
+Omaterm can run inside a `proot` distro, but it operates in a reduced mode. User-space tools, configs, and local binaries are installed normally; system services and host-level integrations such as Docker, Tailscale service setup, and SSH daemon reconfiguration are skipped. If auto-detection misses your environment, run the installer with `OMATERM_PROOT=1`.
+
 ## Install
 
 ```bash
