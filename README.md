@@ -24,6 +24,8 @@ curl -fsSL https://raw.githubusercontent.com/HowieDuhzit/omaterm/proot/install.s
 
 If you cloned the repo, run `bash install.sh` from the repo root. The installer will use the local checkout instead of recloning from upstream.
 
+If you pipe the script into `bash`, it will automatically clone the repository into a temporary directory and continue from there.
+
 ## What it sets up
 
 - **Shell**: Bash with starship prompt, fzf, eza, zoxide

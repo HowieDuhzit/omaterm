@@ -212,9 +212,14 @@ if ! command -v git &>/dev/null; then
 fi
 
 REPO="${OMATERM_REPO:-https://github.com/HowieDuhzit/omaterm.git}"
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-${0:-}}"
+SCRIPT_DIR=""
 
-if [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/install" ] && [ -d "$SCRIPT_DIR/config" ] && [ -d "$SCRIPT_DIR/bin" ]; then
+if [ -n "$SCRIPT_PATH" ] && [ "$SCRIPT_PATH" != "bash" ] && [ "$SCRIPT_PATH" != "-" ]; then
+  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd -P)"
+fi
+
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/install" ] && [ -d "$SCRIPT_DIR/config" ] && [ -d "$SCRIPT_DIR/bin" ]; then
   INSTALLER_DIR="$SCRIPT_DIR"
 else
   INSTALLER_DIR="$(mktemp -d)"
