@@ -238,13 +238,17 @@ ensure_supported_user_context()
 
 # Ensure correct git is installed
 if ! command -v git &>/dev/null; then
+  pkg_mgr_bin=""
   if [ -f /etc/arch-release ]; then
-    run_privileged "$(require_linux_binary pacman)" -Sy --noconfirm git
+    pkg_mgr_bin="$(require_linux_binary pacman)"
+    run_privileged "$pkg_mgr_bin" -Sy --noconfirm git
   elif [ -f /etc/debian_version ]; then
-    run_privileged "$(require_linux_binary apt-get)" update
-    run_privileged "$(require_linux_binary apt-get)" install -y git
+    pkg_mgr_bin="$(require_linux_binary apt-get)"
+    run_privileged "$pkg_mgr_bin" update
+    run_privileged "$pkg_mgr_bin" install -y git
   elif [ -f /etc/fedora-release ]; then
-    run_privileged "$(require_linux_binary dnf)" install -y git
+    pkg_mgr_bin="$(require_linux_binary dnf)"
+    run_privileged "$pkg_mgr_bin" install -y git
   fi
 fi
 
@@ -259,9 +263,10 @@ fi
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/install" ] && [ -d "$SCRIPT_DIR/config" ] && [ -d "$SCRIPT_DIR/bin" ]; then
   INSTALLER_DIR="$SCRIPT_DIR"
 else
+  git_bin="$(require_linux_binary git)"
   INSTALLER_DIR="$(mktemp -d)"
   trap 'rm -rf "$INSTALLER_DIR"' EXIT
-  "$(require_linux_binary git)" clone --depth 1 "$REPO" "$INSTALLER_DIR"
+  "$git_bin" clone --depth 1 "$REPO" "$INSTALLER_DIR"
 fi
 
 # OS detection and dispatch

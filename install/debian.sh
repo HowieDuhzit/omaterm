@@ -1,4 +1,5 @@
 install_packages() {
+  local apt_bin
   local packages=(
     build-essential git openssh-server libssl-dev sudo less net-tools whois
     fzf eza zoxide tmux btop jq man-db
@@ -7,10 +8,11 @@ install_packages() {
     curl wget gpg
     kitty-terminfo
   )
+  apt_bin="$(require_linux_binary apt-get)"
 
   section "Updating system packages..."
-  run_privileged "$(find_linux_binary apt-get)" update
-  run_privileged "$(find_linux_binary apt-get)" upgrade -y
+  run_privileged "$apt_bin" update
+  run_privileged "$apt_bin" upgrade -y
 
   section "Installing Debian packages..."
   if is_proot_environment; then
@@ -19,13 +21,13 @@ install_packages() {
     packages+=(docker.io docker-buildx docker-compose)
   fi
 
-  run_privileged "$(find_linux_binary apt-get)" install -y "${packages[@]}"
+  run_privileged "$apt_bin" install -y "${packages[@]}"
 
   # tldr: Debian Trixie+ replaced tldr with tealdeer
   if apt-cache show tealdeer &>/dev/null; then
-    run_privileged "$(find_linux_binary apt-get)" install -y tealdeer
+    run_privileged "$apt_bin" install -y tealdeer
   else
-    run_privileged "$(find_linux_binary apt-get)" install -y tldr
+    run_privileged "$apt_bin" install -y tldr
   fi
 
   # github-cli (not in Debian/Ubuntu repos)
@@ -39,8 +41,8 @@ install_packages() {
     run_privileged install -D -m 0644 "$keyring_tmp" /usr/share/keyrings/githubcli-archive-keyring.gpg
     run_privileged install -D -m 0644 "$list_tmp" /etc/apt/sources.list.d/github-cli.list
     rm -f "$keyring_tmp" "$list_tmp"
-    run_privileged "$(find_linux_binary apt-get)" update
-    run_privileged "$(find_linux_binary apt-get)" install -y gh
+    run_privileged "$apt_bin" update
+    run_privileged "$apt_bin" install -y gh
   fi
 
   # tailscale (not in Debian/Ubuntu repos)
@@ -86,8 +88,8 @@ install_packages() {
     run_privileged install -D -m 0644 "$charm_keyring_tmp" /etc/apt/keyrings/charm.gpg
     run_privileged install -D -m 0644 "$charm_list_tmp" /etc/apt/sources.list.d/charm.list
     rm -f "$charm_key_tmp" "$charm_keyring_tmp" "$charm_list_tmp"
-    run_privileged "$(find_linux_binary apt-get)" update
-    run_privileged "$(find_linux_binary apt-get)" install -y gum
+    run_privileged "$apt_bin" update
+    run_privileged "$apt_bin" install -y gum
   fi
 
   # mise (not in Ubuntu repos)

@@ -1,4 +1,5 @@
 install_packages() {
+  local pacman_bin
   local official_pkgs=(
     base-devel git openssh sudo less inetutils whois
     starship fzf eza zoxide tmux btop jq gum man-db tldr
@@ -14,7 +15,8 @@ install_packages() {
   fi
 
   section "Installing Arch packages..."
-  run_privileged "$(require_linux_binary pacman)" -Syu --needed --noconfirm "${official_pkgs[@]}"
+  pacman_bin="$(require_linux_binary pacman)"
+  run_privileged "$pacman_bin" -Syu --needed --noconfirm "${official_pkgs[@]}"
 
   if is_proot_environment; then
     skip_in_proot "AUR bootstrap and claude-code installation"
@@ -27,9 +29,12 @@ install_packages() {
 
   if ! command -v yay &>/dev/null; then
     section "Installing yay..."
+    local git_bin makepkg_bin
     local tmpdir=$(mktemp -d)
-    "$(require_linux_binary git)" clone https://aur.archlinux.org/yay-bin.git "$tmpdir/yay"
-    (cd "$tmpdir/yay" && "$(require_linux_binary makepkg)" -si --noconfirm)
+    git_bin="$(require_linux_binary git)"
+    makepkg_bin="$(require_linux_binary makepkg)"
+    "$git_bin" clone https://aur.archlinux.org/yay-bin.git "$tmpdir/yay"
+    (cd "$tmpdir/yay" && "$makepkg_bin" -si --noconfirm)
     rm -rf "$tmpdir"
   fi
 

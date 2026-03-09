@@ -1,4 +1,5 @@
 install_packages() {
+  local dnf_bin
   local packages=(
     @development-tools
     git openssh-server sudo less net-tools whois
@@ -8,9 +9,10 @@ install_packages() {
     curl wget
     gh
   )
+  dnf_bin="$(require_linux_binary dnf)"
 
   section "Updating system packages..."
-  run_privileged "$(find_linux_binary dnf)" upgrade -y
+  run_privileged "$dnf_bin" upgrade -y
 
   section "Installing Fedora packages..."
   if is_proot_environment; then
@@ -19,7 +21,7 @@ install_packages() {
     packages+=(tailscale)
   fi
 
-  run_privileged "$(find_linux_binary dnf)" install -y "${packages[@]}"
+  run_privileged "$dnf_bin" install -y "${packages[@]}"
 
   # starship (not in Fedora repos)
   if ! command -v starship &>/dev/null; then
@@ -36,15 +38,15 @@ install_packages() {
   # Docker (not in Fedora repos, needs Docker's official repo)
   if ! is_proot_environment && ! command -v docker &>/dev/null; then
     section "Installing Docker..."
-    run_privileged "$(find_linux_binary dnf)" config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo
-    run_privileged "$(find_linux_binary dnf)" install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    run_privileged "$dnf_bin" config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo
+    run_privileged "$dnf_bin" install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
 
   # lazygit (via COPR)
   if ! command -v lazygit &>/dev/null; then
     section "Installing lazygit..."
-    run_privileged "$(find_linux_binary dnf)" copr enable -y atim/lazygit
-    run_privileged "$(find_linux_binary dnf)" install -y lazygit
+    run_privileged "$dnf_bin" copr enable -y atim/lazygit
+    run_privileged "$dnf_bin" install -y lazygit
   fi
 
   # lazydocker (not in repos)
@@ -68,7 +70,7 @@ gpgkey=https://repo.charm.sh/yum/gpg.key
 EOF
     run_privileged install -D -m 0644 "$charm_repo_tmp" /etc/yum.repos.d/charm.repo
     rm -f "$charm_repo_tmp"
-    run_privileged "$(find_linux_binary dnf)" install -y gum
+    run_privileged "$dnf_bin" install -y gum
   fi
 
   # mise (not in Fedora repos)
