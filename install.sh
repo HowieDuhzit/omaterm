@@ -75,19 +75,31 @@ setup_aur_helper() {
 
 install_arch_packages() {
     section "Installing Arch packages..."
-    pacman -Syu --needed --noconfirm \
-        base-devel git openssh sudo less inetutils whois \
-        starship fzf eza zoxide tmux btop jq gum man-db tldr \
-        vim neovim luarocks clang llvm rust libyaml \
+
+    local packages=(
+        base-devel git openssh sudo less inetutils whois
+        starship fzf eza zoxide tmux btop jq gum man-db tldr
+        vim neovim luarocks clang llvm rust libyaml
         github-cli lazygit lazydocker kitty-terminfo
+        ripgrep fd bat dust fastfetch expac plocate
+        alacritty waybar wofi thunar rofi
+        playerctl pamixer brightnessctl
+        python-gobject python-poetry-core
+    )
+
+    pacman -Syu --needed --noconfirm "${packages[@]}"
     echo "✓ Packages installed"
 }
 
 install_mise() {
-    section "Installing mise..."
-    curl -fsSL https://mise.run | sh
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "✓ mise installed"
+    if ! command -v mise &>/dev/null; then
+        section "Installing mise..."
+        curl -fsSL https://mise.run | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        echo "✓ mise installed"
+    else
+        echo "✓ mise already installed"
+    fi
 }
 
 install_opencode() {
@@ -95,6 +107,25 @@ install_opencode() {
         section "Installing opencode..."
         curl -fsSL https://opencode.ai/install.sh | bash || true
     fi
+}
+
+install_claude_code() {
+    if ! command -v claude &>/dev/null && command -v paru &>/dev/null; then
+        section "Installing Claude Code (AUR)..."
+        paru -S --needed --noconfirm claude-code-bin
+        echo "✓ Claude Code installed"
+    fi
+}
+
+install_omarchy_fonts() {
+    section "Installing Omarchy fonts..."
+    pacman -S --needed --noconfirm \
+        ttf-jetbrains-mono-nerd \
+        ttf-ia-writer \
+        noto-fonts \
+        noto-fonts-cjk \
+        noto-fonts-emoji
+    echo "✓ Fonts installed"
 }
 
 install_omadots() {
@@ -136,6 +167,22 @@ install_omaterm_bins() {
     echo "✓ omaterm-ssh, omaterm-theme, omaterm-refresh"
 }
 
+install_omarchy_configs() {
+    section "Installing Omarchy configs..."
+
+    local omarchy_path="$HOME/.local/share/omarchy"
+    if [[ ! -d "$omarchy_path" ]]; then
+        git clone --depth 1 https://github.com/basecamp/omarchy.git "$omarchy_path" 2>/dev/null || true
+    fi
+
+    if [[ -f "$omarchy_path/install/config/git.sh" ]]; then
+        bash "$omarchy_path/install/config/git.sh" 2>/dev/null || true
+        echo "✓ Omarchy git config"
+    fi
+
+    echo "✓ Omarchy configs (partial - desktop configs skipped)"
+}
+
 install_node_ruby() {
     section "Installing Node.js and Ruby..."
     export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
@@ -143,6 +190,44 @@ install_node_ruby() {
     mise use -g node 2>/dev/null || true
     mise use -g ruby 2>/dev/null || true
     echo "✓ Node/Ruby installed (via mise)"
+}
+
+install_desktop() {
+    if is_proot; then
+        section "Desktop Environment"
+        echo "⚠ Skipped (requires systemd, not available in PRoot)"
+        echo "  For desktop, use real Arch install or SSH to a desktop machine"
+        return
+    fi
+
+    section "Installing desktop environment (Hyprland)..."
+    pacman -S --needed --noconfirm \
+        hyprland waybar wofi thunar rofi kitty terminfo \
+        sddm polkit-gnome xdg-desktop-portal-hyprland \
+        nwg-look polkit swaylock-effects \
+        grim slurp wl-clipboard \
+        swaybg mako.Notification-daemon
+
+    systemctl enable sddm
+    echo "✓ Hyprland desktop installed"
+}
+
+install_docker_tailscale() {
+    if is_proot; then
+        section "Docker/Tailscale"
+        echo "⚠ Skipped (requires systemd, not available in PRoot)"
+        return
+    fi
+
+    section "Installing Docker..."
+    pacman -Syu --needed --noconfirm docker docker-buildx docker-compose
+    systemctl enable --now docker.service
+    echo "✓ Docker installed"
+
+    section "Installing Tailscale..."
+    pacman -Syu --needed --noconfirm tailscale
+    systemctl enable --now tailscaled.service
+    echo "✓ Tailscale installed"
 }
 
 finish() {
@@ -157,34 +242,30 @@ finish() {
     echo "  g     → git"
     echo "  lzd   → lazydocker"
     echo "  lg    → lazygit"
-}
-
-setup_proot() {
-    show_banner
-    section "Setting up Arch Linux via proot-distro..."
-
-    setup_arch_proot
-    
-    section "Login to Arch Linux"
-    echo "Run: proot-distro login archlinux"
-    echo "Then re-run this script inside Arch Linux."
+    echo "  zd    → smart cd"
+    echo "  du    → disk usage (dust)"
+    echo "  ff    → fuzzy find"
     echo ""
-    echo "Or continue to install omaterm now..."
-    read -rp "Continue with omaterm install? [Y/n]: " confirm
-    [[ "${confirm:-y}" =~ ^[Nn]$ ]] && exit 0
+    echo "For desktop: install on real Arch (omarchy.org)"
 }
 
 main() {
     if is_termux; then
         if [[ ! -d /etc/pacman.d ]]; then
-            setup_proot
+            show_banner
+            section "Setting up Arch Linux via proot-distro..."
+            setup_arch_proot
+            section "Login to Arch Linux"
+            echo "Run: proot-distro login archlinux"
+            echo "Then re-run this script inside Arch Linux."
+            return
         fi
     fi
 
     show_banner
     section "Installing HowieDuhzit/omaterm..."
 
-    if ! is_proot && is_termux; then
+    if ! is_proot; then
         setup_user
         setup_aur_helper
     fi
@@ -192,11 +273,16 @@ main() {
     install_arch_packages
     install_mise
     install_opencode
+    install_claude_code
+    install_omarchy_fonts
     install_omadots
     install_omaterm_configs
     install_omaterm_bins
+    install_omarchy_configs
     install_node_ruby
     prompt_git
+    install_desktop
+    install_docker_tailscale
     finish
 }
 
