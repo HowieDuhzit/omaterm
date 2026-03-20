@@ -58,6 +58,13 @@ install_opencode() {
 install_omadots() {
     section "Installing omadots (shell configs)..."
     curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | bash 2>/dev/null || true
+    section "Fixing ~/.bashrc for PATH..."
+    cat > ~/.bashrc << 'EOF'
+# HowieDuhzit/omaterm + omadots
+[[ -f ~/.config/shell/all ]] && source ~/.config/shell/all
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+EOF
+    echo "✓ ~/.bashrc updated with PATH"
 }
 
 install_omaterm_configs() {
@@ -152,8 +159,6 @@ main() {
     install_omaterm_configs
     install_omaterm_bins
     install_node_ruby
-    setup_bashrc
-    prompt_git
     install_docker_tailscale
     finish
 }
