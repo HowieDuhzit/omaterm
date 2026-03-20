@@ -1,11 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-# Common functions for Omaterm installation
-show_banner() {
-  clear
-  echo
-  echo " ▄██████▄    ▄▄▄▄███▄▄▄▄      ▄████████     ███        ▄████████    ▄████████   ▄▄▄▄███▄▄▄▄  
+BANNER='
+ ▄██████▄    ▄▄▄▄███▄▄▄▄      ▄████████     ███        ▄████████    ▄████████   ▄▄▄▄███▄▄▄▄  
 ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ▀█████████▄   ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄
 ███    ███ ███   ███   ███   ███    ███    ▀███▀▀██   ███    █▀    ███    ███ ███   ███   ███
 ███    ███ ███   ███   ███   ███    ███     ███   ▀  ▄███▄▄▄      ▄███▄▄▄▄██▀ ███   ███   ███
@@ -13,273 +10,144 @@ show_banner() {
 ███    ███ ███   ███   ███   ███    ███     ███       ███    █▄  ▀███████████ ███   ███   ███
 ███    ███ ███   ███   ███   ███    ███     ███       ███    ███   ███    ███ ███   ███   ███
  ▀██████▀   ▀█   ███   █▀    ███    █▀     ▄████▀     ██████████   ███    ███  ▀█   ███   █▀ 
-                                                                   ███    ███                "
+                                                                   ███    ███                
+'
+
+section() { echo -e "\n==> $1"; }
+show_banner() { clear; echo "$BANNER"; }
+
+is_proot() {
+    ! systemctl --version &>/dev/null || \
+    grep -q "PRoot" /proc/version 2>/dev/null
 }
 
-section() {
-  echo -e "\n==> $1"
+prompt_git() {
+    section "Git Configuration"
+    read -rp "Git user.name: " git_name
+    read -rp "Git user.email: " git_email
+    git config --global user.name "$git_name"
+    git config --global user.email "$git_email"
+    echo "✓ Git configured"
 }
 
-is_proot_environment() {
-  if [ "${OMATERM_PROOT:-0}" = "1" ]; then
-    return 0
-  fi
-
-  if [ -n "${PROOT_TMP_DIR:-}" ] || [ -n "${PROOT_LOADER:-}" ] || [ -n "${PROOT_NO_SECCOMP:-}" ]; then
-    return 0
-  fi
-
-  if [ -r /proc/mounts ] && grep -q "/data/data/com.termux" /proc/mounts 2>/dev/null; then
-    return 0
-  fi
-
-  return 1
+install_arch_packages() {
+    section "Installing Arch packages..."
+    pacman -Syu --needed --noconfirm \
+        base-devel git openssh sudo less inetutils whois \
+        starship fzf eza zoxide tmux btop jq gum man-db tldr \
+        vim neovim luarocks clang llvm rust libyaml \
+        github-cli lazygit lazydocker kitty-terminfo
+    echo "✓ Packages installed"
 }
 
-sanitize_proot_environment() {
-  if ! is_proot_environment; then
-    return 0
-  fi
-
-  # Termux's exec shim can leak into proot and redirect shebang execution to
-  # Android system binaries, which breaks normal Linux script execution.
-  unset LD_PRELOAD
-  unset PREFIX TERMUX_APP_PID TERMUX_MAIN_PACKAGE_FORMAT TERMUX_VERSION
-  export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-  hash -r
+install_mise() {
+    section "Installing mise..."
+    curl -fsSL https://mise.run | sh
+    export PATH="$HOME/.local/bin:$PATH"
+    echo "✓ mise installed"
 }
 
-find_linux_binary() {
-  local name="$1"
-  local candidate
-
-  for candidate in "/usr/bin/$name" "/bin/$name" "/usr/sbin/$name" "/sbin/$name" "/usr/local/bin/$name" "/usr/local/sbin/$name"; do
-    if [ -x "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return 0
+install_opencode() {
+    if ! command -v opencode &>/dev/null; then
+        section "Installing opencode..."
+        curl -fsSL https://opencode.ai/install.sh | bash || true
     fi
-  done
-
-  return 1
-}
-
-require_linux_binary() {
-  local name="$1"
-  local resolved
-
-  if resolved="$(find_linux_binary "$name")"; then
-    printf '%s\n' "$resolved"
-    return 0
-  fi
-
-  if command -v "$name" >/dev/null 2>&1; then
-    command -v "$name"
-    return 0
-  fi
-
-  echo "Error: required binary '$name' was not found in the proot distro." >&2
-  return 1
-}
-
-supports_systemd() {
-  command -v systemctl &>/dev/null && [ -d /run/systemd/system ]
-}
-
-run_privileged() {
-  if [ "${EUID:-$(id -u)}" -eq 0 ]; then
-    "$@"
-  elif command -v sudo &>/dev/null; then
-    sudo "$@"
-  else
-    echo "Error: this step requires root privileges, but sudo is unavailable."
-    return 1
-  fi
-}
-
-skip_in_proot() {
-  local step="$1"
-  echo "Skipping $step in proot."
-}
-
-ensure_supported_user_context() {
-  if is_proot_environment && [ "${EUID:-$(id -u)}" -ne 0 ]; then
-    echo "Error: Arch proot installs must be run as root inside the proot."
-    echo "Reason: sudo/password auth frequently fails in Android proot with 'Authentication token manipulation error'."
-    echo "Fix: enter the distro as root and rerun, for example with 'proot-distro login <distro> --user root'."
-    exit 1
-  fi
 }
 
 install_omadots() {
-  local curl_bin bash_bin
-  curl_bin="$(require_linux_binary curl)"
-  bash_bin="$(require_linux_binary bash)"
-  "$curl_bin" -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | LD_PRELOAD= "$bash_bin"
-}
-
-install_configs() {
-  section "Installing configs..."
-  mkdir -p "$HOME/.config"
-  cp -Rf "$INSTALLER_DIR/config/"* "$HOME/.config/"
-  echo "✓ Neovim"
-  echo "✓ Starship"
-
-  if ! grep -q "if \[\[ -z \$TMUX \]\]" "$HOME/.bashrc" 2>/dev/null; then
-    cat >>"$HOME/.bashrc" <<'EOF'
-if [[ -z $TMUX ]]; then
-  t
-fi
+    section "Installing omadots (shell configs)..."
+    curl -fsSL https://raw.githubusercontent.com/omacom-io/omadots/refs/heads/master/install.sh | bash 2>/dev/null || true
+    section "Fixing ~/.bashrc for PATH..."
+    cat > ~/.bashrc << 'EOF'
+# HowieDuhzit/omaterm + omadots
+[[ -f ~/.config/shell/all ]] && source ~/.config/shell/all
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 EOF
-    echo "✓ Tmux auto-start"
-  fi
+    echo "✓ ~/.bashrc updated with PATH"
 }
 
-install_bins() {
-  section "Installing bins..."
-  mkdir -p "$HOME/.local/bin"
-  cp -Rf "$INSTALLER_DIR/bin/"* "$HOME/.local/bin/"
-  chmod +x "$HOME/.local/bin/"*
-  echo "✓ omaterm-ssh"
-  echo "✓ omaterm-theme"
-  echo "✓ omaterm-refresh"
+install_omaterm_configs() {
+    section "Installing omaterm configs..."
+    local repo
+    repo=$(mktemp -d)
+    git clone --depth 1 https://github.com/HowieDuhzit/omaterm.git "$repo" 2>/dev/null || \
+    git clone --depth 1 https://github.com/omacom-io/omaterm.git "$repo"
+    
+    mkdir -p "$HOME/.config"
+    cp -Rf "$repo/config/"* "$HOME/.config/" 2>/dev/null || true
+    rm -rf "$repo"
+    echo "✓ Configs installed"
 }
 
-install_mise_tools() {
-  section "Installing Ruby + Node..."
-  eval "$(mise activate bash)" 2>/dev/null || true
-  mise use -g node
-  mise use -g ruby
-  export PATH="$HOME/.local/share/mise/shims:$PATH"
+install_omaterm_bins() {
+    section "Installing omaterm scripts..."
+    local repo
+    repo=$(mktemp -d)
+    git clone --depth 1 https://github.com/HowieDuhzit/omaterm.git "$repo" 2>/dev/null || \
+    git clone --depth 1 https://github.com/omacom-io/omaterm.git "$repo"
+    
+    mkdir -p "$HOME/.local/bin"
+    cp -f "$repo/bin/"* "$HOME/.local/bin/" 2>/dev/null || true
+    chmod +x "$HOME/.local/bin/omaterm-*" 2>/dev/null || true
+    rm -rf "$repo"
+    echo "✓ omaterm-ssh, omaterm-theme, omaterm-refresh"
 }
 
-setup_docker_group() {
-  if is_proot_environment; then
-    skip_in_proot "Docker group setup"
-    return 0
-  fi
+install_node_ruby() {
+    section "Installing Node.js and Ruby..."
+    export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+    eval "$(mise activate bash)" 2>/dev/null || true
+    mise use -g node 2>/dev/null || true
+    mise use -g ruby 2>/dev/null || true
+    echo "✓ Node/Ruby installed (via mise)"
+}
 
-  if ! groups | grep -q docker; then
-    if command -v usermod &>/dev/null; then
-      run_privileged usermod -aG docker "$USER"
-    else
-      run_privileged adduser "$USER" docker
+install_docker_tailscale() {
+    if is_proot; then
+        section "Docker/Tailscale"
+        echo "⚠ Skipped (requires systemd, not available in PRoot)"
+        return
     fi
-  fi
-}
 
-interactive_setup() {
-  section "Interactive setup..."
+    section "Installing Docker..."
+    pacman -Syu --needed --noconfirm docker docker-buildx docker-compose
+    systemctl enable --now docker.service
+    echo "✓ Docker installed"
 
-  if ! gh auth status &>/dev/null; then
-    echo
-    if gum confirm "Authenticate with GitHub?" </dev/tty; then
-      gh auth login
-    fi
-  fi
-
-  if ! tailscale status &>/dev/null; then
-    echo
-    if gum confirm "Connect to Tailscale network?" </dev/tty; then
-      if is_proot_environment || ! supports_systemd; then
-        echo "Skipping Tailscale connect: proot environments do not support the required system service setup."
-        return 0
-      fi
-      echo "This might take a minute..."
-      run_privileged systemctl enable --now tailscaled.service
-      run_privileged tailscale up --ssh --accept-routes
-    fi
-  fi
+    section "Installing Tailscale..."
+    pacman -Syu --needed --noconfirm tailscale
+    systemctl enable --now tailscaled.service
+    echo "✓ Tailscale installed"
 }
 
 finish() {
-  section "Finished!"
-  if is_proot_environment; then
-    echo "Restart the proot session so PATH and shell changes take effect."
-  else
-    echo "Now logout and back in for everything to take effect"
-  fi
+    section "Done!"
+    echo ""
+    echo "Restart your shell or run: source ~/.bashrc"
+    echo ""
+    echo "Key shortcuts:"
+    echo "  c     → opencode"
+    echo "  n     → neovim"
+    echo "  t     → tmux"
+    echo "  g     → git"
+    echo "  lzd   → lazydocker"
+    echo "  lg    → lazygit"
 }
 
-run_installation() {
-  # OS-specific package installation
-  install_packages
+main() {
+    show_banner
+    section "Installing HowieDuhzit/omaterm (PROot)..."
 
-  # Omadots
-  install_omadots
-
-  # Configs and bins
-  install_configs
-  install_bins
-
-  # Mise tooling
-  install_mise_tools
-
-  # OS-specific tools that need npm (installed after mise provides node)
-  install_npm_tools
-
-  # OS-specific service enabling
-  enable_services
-
-  # Setup Docker group
-  setup_docker_group
-
-  # Interactive setup
-  interactive_setup
-
-  # Done!
-  finish
+    install_arch_packages
+    install_mise
+    install_opencode
+    install_omadots
+    install_omaterm_configs
+    install_omaterm_bins
+    install_node_ruby
+    prompt_git
+    install_docker_tailscale
+    finish
 }
 
-# Getting started
-sanitize_proot_environment
-show_banner
-section "Installing Omaterm..."
-ensure_supported_user_context()
-
-# Ensure correct git is installed
-if ! command -v git &>/dev/null; then
-  pkg_mgr_bin=""
-  if [ -f /etc/arch-release ]; then
-    pkg_mgr_bin="$(require_linux_binary pacman)"
-    run_privileged "$pkg_mgr_bin" -Sy --noconfirm git
-  elif [ -f /etc/debian_version ]; then
-    pkg_mgr_bin="$(require_linux_binary apt-get)"
-    run_privileged "$pkg_mgr_bin" update
-    run_privileged "$pkg_mgr_bin" install -y git
-  elif [ -f /etc/fedora-release ]; then
-    pkg_mgr_bin="$(require_linux_binary dnf)"
-    run_privileged "$pkg_mgr_bin" install -y git
-  fi
-fi
-
-REPO="${OMATERM_REPO:-https://github.com/HowieDuhzit/omaterm.git}"
-SCRIPT_PATH="${0:-}"
-SCRIPT_DIR=""
-
-if [ -n "$SCRIPT_PATH" ] && [ "$SCRIPT_PATH" != "bash" ] && [ "$SCRIPT_PATH" != "-" ] && [ "$SCRIPT_PATH" != "/bin/bash" ]; then
-  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd -P)"
-fi
-
-if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install.sh" ] && [ -d "$SCRIPT_DIR/install" ] && [ -d "$SCRIPT_DIR/config" ] && [ -d "$SCRIPT_DIR/bin" ]; then
-  INSTALLER_DIR="$SCRIPT_DIR"
-else
-  git_bin="$(require_linux_binary git)"
-  INSTALLER_DIR="$(mktemp -d)"
-  trap 'rm -rf "$INSTALLER_DIR"' EXIT
-  "$git_bin" clone --depth 1 "$REPO" "$INSTALLER_DIR"
-fi
-
-# OS detection and dispatch
-if [ -f /etc/arch-release ]; then
-  source "$INSTALLER_DIR/install/arch.sh"
-elif [ -f /etc/debian_version ]; then
-  source "$INSTALLER_DIR/install/debian.sh"
-elif [ -f /etc/fedora-release ]; then
-  source "$INSTALLER_DIR/install/fedora.sh"
-else
-  echo "Error: Unsupported operating system"
-  echo "Omaterm supports Arch Linux, Debian/Ubuntu, and Fedora"
-  exit 1
-fi
-
-run_installation
+main "$@"
