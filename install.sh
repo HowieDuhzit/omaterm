@@ -64,6 +64,7 @@ setup_aur_helper() {
         section "Installing paru (AUR helper)..."
         pacman -S --needed git base-devel
         cd /tmp
+        rm -rf paru
         git clone https://aur.archlinux.org/paru.git
         cd paru && makepkg -si --noconfirm
         cd /tmp && rm -rf paru
@@ -82,9 +83,10 @@ install_arch_packages() {
         vim neovim luarocks clang llvm rust libyaml
         github-cli lazygit lazydocker kitty-terminfo
         ripgrep fd bat dust fastfetch expac plocate
-        alacritty waybar wofi thunar rofi
-        playerctl pamixer brightnessctl
+        alacritty playerctl pamixer brightnessctl
         python-gobject python-poetry-core
+        noto-fonts noto-fonts-emoji
+        terminus-font fontconfig
     )
 
     pacman -Syu --needed --noconfirm "${packages[@]}"
@@ -105,27 +107,20 @@ install_mise() {
 install_opencode() {
     if ! command -v opencode &>/dev/null; then
         section "Installing opencode..."
-        curl -fsSL https://opencode.ai/install.sh | bash || true
+        curl -fsSL https://opencode.ai/install | bash || \
+        npm install -g opencode-ai 2>/dev/null || true
+        echo "✓ opencode installed"
+    else
+        echo "✓ opencode already installed"
     fi
 }
 
 install_claude_code() {
     if ! command -v claude &>/dev/null && command -v paru &>/dev/null; then
         section "Installing Claude Code (AUR)..."
-        paru -S --needed --noconfirm claude-code-bin
-        echo "✓ Claude Code installed"
+        paru -S --needed --noconfirm claude-code-bin 2>/dev/null || true
+        echo "✓ Claude Code"
     fi
-}
-
-install_omarchy_fonts() {
-    section "Installing Omarchy fonts..."
-    pacman -S --needed --noconfirm \
-        ttf-jetbrains-mono-nerd \
-        ttf-ia-writer \
-        noto-fonts \
-        noto-fonts-cjk \
-        noto-fonts-emoji
-    echo "✓ Fonts installed"
 }
 
 install_omadots() {
@@ -202,11 +197,10 @@ install_desktop() {
 
     section "Installing desktop environment (Hyprland)..."
     pacman -S --needed --noconfirm \
-        hyprland waybar wofi thunar rofi kitty terminfo \
+        hyprland waybar wofi thunar rofi kitty-terminfo \
         sddm polkit-gnome xdg-desktop-portal-hyprland \
-        nwg-look polkit swaylock-effects \
-        grim slurp wl-clipboard \
-        swaybg mako.Notification-daemon
+        nwg-look swaylock-effects \
+        grim slurp wl-clipboard swaybg mako
 
     systemctl enable sddm
     echo "✓ Hyprland desktop installed"
@@ -243,8 +237,6 @@ finish() {
     echo "  lzd   → lazydocker"
     echo "  lg    → lazygit"
     echo "  zd    → smart cd"
-    echo "  du    → disk usage (dust)"
-    echo "  ff    → fuzzy find"
     echo ""
     echo "For desktop: install on real Arch (omarchy.org)"
 }
@@ -274,7 +266,6 @@ main() {
     install_mise
     install_opencode
     install_claude_code
-    install_omarchy_fonts
     install_omadots
     install_omaterm_configs
     install_omaterm_bins
