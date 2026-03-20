@@ -21,6 +21,11 @@ is_proot() {
     grep -q "PRoot" /proc/version 2>/dev/null
 }
 
+is_termux() {
+    [[ -d /data/data/com.termux/files/usr ]] || \
+    command -v termux-chroot &>/dev/null
+}
+
 prompt_git() {
     section "Git Configuration"
     read -rp "Git user.name: " git_name
@@ -28,6 +33,44 @@ prompt_git() {
     git config --global user.name "$git_name"
     git config --global user.email "$git_email"
     echo "✓ Git configured"
+}
+
+setup_arch_proot() {
+    if ! command -v proot-distro &>/dev/null; then
+        section "Installing proot-distro..."
+        pkg update && pkg install proot-distro
+    fi
+
+    if ! proot-distro list 2>/dev/null | grep -q archlinux; then
+        section "Installing Arch Linux via proot-distro..."
+        proot-distro install archlinux
+    fi
+}
+
+setup_user() {
+    if ! id myuser &>/dev/null; then
+        section "Creating user..."
+        useradd -m -G wheel myuser
+        passwd myuser
+        echo "myuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+        echo "✓ User 'myuser' created"
+    else
+        echo "✓ User 'myuser' exists"
+    fi
+}
+
+setup_aur_helper() {
+    if ! command -v paru &>/dev/null; then
+        section "Installing paru (AUR helper)..."
+        pacman -S --needed git base-devel
+        cd /tmp
+        git clone https://aur.archlinux.org/paru.git
+        cd paru && makepkg -si --noconfirm
+        cd /tmp && rm -rf paru
+        echo "✓ paru installed"
+    else
+        echo "✓ paru already installed"
+    fi
 }
 
 install_arch_packages() {
@@ -102,24 +145,6 @@ install_node_ruby() {
     echo "✓ Node/Ruby installed (via mise)"
 }
 
-install_docker_tailscale() {
-    if is_proot; then
-        section "Docker/Tailscale"
-        echo "⚠ Skipped (requires systemd, not available in PRoot)"
-        return
-    fi
-
-    section "Installing Docker..."
-    pacman -Syu --needed --noconfirm docker docker-buildx docker-compose
-    systemctl enable --now docker.service
-    echo "✓ Docker installed"
-
-    section "Installing Tailscale..."
-    pacman -Syu --needed --noconfirm tailscale
-    systemctl enable --now tailscaled.service
-    echo "✓ Tailscale installed"
-}
-
 finish() {
     section "Done!"
     echo ""
@@ -134,9 +159,35 @@ finish() {
     echo "  lg    → lazygit"
 }
 
-main() {
+setup_proot() {
     show_banner
-    section "Installing HowieDuhzit/omaterm (PROot)..."
+    section "Setting up Arch Linux via proot-distro..."
+
+    setup_arch_proot
+    
+    section "Login to Arch Linux"
+    echo "Run: proot-distro login archlinux"
+    echo "Then re-run this script inside Arch Linux."
+    echo ""
+    echo "Or continue to install omaterm now..."
+    read -rp "Continue with omaterm install? [Y/n]: " confirm
+    [[ "${confirm:-y}" =~ ^[Nn]$ ]] && exit 0
+}
+
+main() {
+    if is_termux; then
+        if [[ ! -d /etc/pacman.d ]]; then
+            setup_proot
+        fi
+    fi
+
+    show_banner
+    section "Installing HowieDuhzit/omaterm..."
+
+    if ! is_proot && is_termux; then
+        setup_user
+        setup_aur_helper
+    fi
 
     install_arch_packages
     install_mise
@@ -146,7 +197,6 @@ main() {
     install_omaterm_bins
     install_node_ruby
     prompt_git
-    install_docker_tailscale
     finish
 }
 
