@@ -189,9 +189,14 @@ install_node_ruby() {
 
 install_desktop() {
     if is_proot; then
-        section "Desktop Environment"
-        echo "⚠ Skipped (requires systemd, not available in PRoot)"
-        echo "  For desktop, use real Arch install or SSH to a desktop machine"
+        section "Desktop Environment (VNC Tiling)"
+        local script_dir
+        script_dir="$(dirname "${BASH_SOURCE[0]}")"
+        if [[ -f "$script_dir/vnc-tiling.sh" ]]; then
+            bash "$script_dir/vnc-tiling.sh"
+        else
+            echo "⚠ vnc-tiling.sh not found"
+        fi
         return
     fi
 
