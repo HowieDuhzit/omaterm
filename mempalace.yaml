@@ -1,0 +1,10 @@
+wing: omaproot
+rooms:
+- name: bin
+  description: Files from bin/
+- name: configuration
+  description: Files from config/
+- name: install
+  description: Files from install/
+- name: general
+  description: Files that don't fit other rooms
