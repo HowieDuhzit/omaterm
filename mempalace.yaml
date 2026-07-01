@@ -1,0 +1,10 @@
+wing: omaterm
+rooms:
+- name: install
+  description: Files from install/
+- name: bin
+  description: Files from bin/
+- name: configuration
+  description: Files from config/
+- name: general
+  description: Files that don't fit other rooms
